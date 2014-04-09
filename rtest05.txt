@@ -1,0 +1,36 @@
+./sdriver.pl -t trace05.txt -s ./tshref -a "-p -v"
+#
+# trace05.txt - Process jobs builtin command.
+#
+tsh> ./myspin 2 &
+Added job [1] 10840 /bin/echo -e tsh> ./myspin 2 \046
+
+sigchld_handler: entering
+sigchld_handler: Job [1] (10840) deleted
+sigchld_handler: Job [1] (10840) terminates OK (status 0)
+sigchld_handler: exiting
+waitfg: Process (10840) no longer the fg process
+Added job [1] 10841 ./myspin 2 &
+
+[1] (10841) ./myspin 2 &
+tsh> ./myspin 3 &
+Added job [2] 10842 /bin/echo -e tsh> ./myspin 3 \046
+
+sigchld_handler: entering
+sigchld_handler: Job [2] (10842) deleted
+sigchld_handler: Job [2] (10842) terminates OK (status 0)
+sigchld_handler: exiting
+waitfg: Process (10842) no longer the fg process
+Added job [2] 10843 ./myspin 3 &
+
+[2] (10843) ./myspin 3 &
+tsh> jobs
+Added job [3] 10844 /bin/echo tsh> jobs
+
+sigchld_handler: entering
+sigchld_handler: Job [3] (10844) deleted
+sigchld_handler: Job [3] (10844) terminates OK (status 0)
+sigchld_handler: exiting
+waitfg: Process (10844) no longer the fg process
+[1] (10841) Running ./myspin 2 &
+[2] (10843) Running ./myspin 3 &

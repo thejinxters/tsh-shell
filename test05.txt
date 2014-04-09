@@ -1,0 +1,39 @@
+./sdriver.pl -t trace05.txt -s ./tsh -a "-p -v"
+#
+# trace05.txt - Process jobs builtin command.
+#
+tsh> ./myspin 2 &
+Added job [1] 10857 /bin/echo -e tsh> ./myspin 2 \046
+
+sigchld_handler: entering
+sigchld_handler: Job [1] (10857) deleted
+sigchld_handler: Job [1] (-1) terminates OK (status 0)
+sigchld_handler: exiting
+Added job [1] 10858 ./myspin 2 &
+
+[1] (10858) ./myspin 2 &
+tsh> ./myspin 3 &
+Added job [2] 10859 /bin/echo -e tsh> ./myspin 3 \046
+
+sigchld_handler: entering
+sigchld_handler: Job [2] (10859) deleted
+sigchld_handler: Job [1] (10858) deleted
+sigchld_handler: Job [1] (-1) terminates OK (status 0)
+sigchld_handler: exiting
+sigchld_handler: entering
+sigchld_handler: Job [1] (-1) terminates OK (status 0)
+sigchld_handler: exiting
+Added job [1] 10860 ./myspin 3 &
+
+[1] (10860) ./myspin 3 &
+tsh> jobs
+Added job [2] 10861 /bin/echo tsh> jobs
+
+sigchld_handler: entering
+sigchld_handler: Job [2] (10861) deleted
+sigchld_handler: Job [1] (10860) deleted
+sigchld_handler: Job [1] (-1) terminates OK (status 0)
+sigchld_handler: exiting
+sigchld_handler: entering
+sigchld_handler: Job [1] (-1) terminates OK (status 0)
+sigchld_handler: exiting
