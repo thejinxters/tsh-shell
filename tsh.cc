@@ -186,14 +186,15 @@ void eval(char *cmdline)
   pid_t pid;
 
   sigset_t mask;
+  sigemptyset(&mask);
+    sigaddset(&mask, SIGCHLD);
+    //Blocks SIGCHLD from triggering
+    sigprocmask(SIG_BLOCK, &mask, NULL);
 
 
 
   if(!builtin_cmd(argv)){
-    sigemptyset(&mask);
-    sigaddset(&mask, SIGCHLD);
-    //Blocks SIGCHLD from triggering
-    sigprocmask(SIG_BLOCK, &mask, NULL);
+
 
     //Create Child to run job
     if ((pid = Fork()) == 0){
@@ -395,8 +396,15 @@ void sigchld_handler(int sig)
 //
 void sigint_handler(int sig)
 {
-  printf("\nCaught SIGINT\n");
-  //kill(pid, SIGKILL);
+  //get current foreground process
+  pid_t pid = fgpid(jobs);
+  //kills current foreground process
+  if (pid != 0){
+    if(!kill(pid, sig)){
+      //if successfull, it prints out which job was terminated
+      printf("Job [%d] (%d) terminated by signal %d\n", pid2jid(pid), pid, sig);
+    }
+  }
 }
 
 /////////////////////////////////////////////////////////////////////////////
