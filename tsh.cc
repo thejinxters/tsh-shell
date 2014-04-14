@@ -187,14 +187,12 @@ void eval(char *cmdline)
 
   sigset_t mask;
   sigemptyset(&mask);
-    sigaddset(&mask, SIGCHLD);
-    //Blocks SIGCHLD from triggering
-    sigprocmask(SIG_BLOCK, &mask, NULL);
-
-
+  sigaddset(&mask, SIGCHLD);
 
   if(!builtin_cmd(argv)){
 
+    //Blocks SIGCHLD from triggering
+    sigprocmask(SIG_BLOCK, &mask, NULL);
 
     //Create Child to run job
     if ((pid = Fork()) == 0){
@@ -214,16 +212,20 @@ void eval(char *cmdline)
       }
     }
     if(!bg){
-      if (!addjob(jobs, pid, FG, cmdline))
+      if (!addjob(jobs, pid, FG, cmdline)){
+        kill(-pid, SIGINT);
         return;
+      }
       //unblock Parent
       sigprocmask(SIG_UNBLOCK, &mask, NULL);
       waitfg(pid);
     }
     //if it is a background process
     else{
-      if (!addjob(jobs, pid, BG, cmdline))
+      if (!addjob(jobs, pid, BG, cmdline)){
+        kill(-pid, SIGINT);
         return;
+      }
       //unblock Parent
       sigprocmask(SIG_UNBLOCK, &mask, NULL);
       printf("[%d] (%d) %s", pid2jid(pid), pid, cmdline);
@@ -315,9 +317,20 @@ void do_bgfg(char **argv)
   //
   string cmd(argv[0]);
 
-  // if(cmd = "fg"){
 
-  // }
+  if(kill(-jobp->pid, SIGCONT) == -1){
+      printf("Job [%d] (%d)not continued", jobp->jid, jobp->pid);
+    }
+
+  if(cmd == "fg"){
+    jobp->state = FG;
+    waitfg(jobp->pid);
+  }
+
+  if(cmd == "bg"){
+    jobp->state = BG;
+    printf("[%d] (%d) %s", pid2jid(jobp->pid), jobp->pid, jobp->cmdline);
+  }
 
   return;
 }
@@ -356,35 +369,17 @@ void waitfg(pid_t pid)
 //
 void sigchld_handler(int sig)
 {
-  if(verbose){
-    printf("sigchld_handler: entering\n");
-  }
-  pid_t pid;
   pid_t wpid;
   int status;
-  int jid;
   //Reaps a zombie child
   while((wpid = waitpid(-1, &status, WNOHANG|WUNTRACED)) > 0){
-    jid = pid2jid(wpid);
     if(WIFSTOPPED(status)){
       return;
     }
     deletejob(jobs, wpid);
-    if(verbose){
-      printf("sigchld_handler: Job [%d] (%d) deleted\n", jid, wpid);
-    }
-    pid = wpid;
   }
   if (errno != ECHILD){
     unix_error("waitpid error");
-  }
-  else{
-    if(verbose){
-      printf("sigchld_handler: Job [%d] (%d) terminates OK (status %d)\n", jid, wpid, WEXITSTATUS(status));
-    }
-  }
-  if(verbose){
-    printf("sigchld_handler: exiting\n");
   }
 }
 
@@ -398,9 +393,9 @@ void sigint_handler(int sig)
 {
   //get current foreground process
   pid_t pid = fgpid(jobs);
-  //kills current foreground process
+  //stops current foreground process
   if (pid != 0){
-    if(!kill(pid, sig)){
+    if(!kill(-pid, SIGINT)){
       //if successfull, it prints out which job was terminated
       printf("Job [%d] (%d) terminated by signal %d\n", pid2jid(pid), pid, sig);
     }
@@ -415,6 +410,16 @@ void sigint_handler(int sig)
 //
 void sigtstp_handler(int sig)
 {
+  pid_t pid = fgpid(jobs);
+  //kills current foreground process
+  if (pid != 0){
+    if(!kill(-pid, SIGTSTP)){
+      //if successfull, it prints out which job was terminated
+      printf("Job [%d] (%d) stopped by signal %d\n", pid2jid(pid), pid, sig);
+      getjobpid(jobs, pid)->state = ST;
+    }
+  }
+
   return;
 }
 
