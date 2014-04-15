@@ -212,25 +212,30 @@ void eval(char *cmdline)
         exit(0);
       }
     }
-      if(!bg){
-        if (!addjob(jobs, pid, FG, cmdline)){
-          kill(-pid, SIGINT);
-          return;
-        }
-        //unblock Parent
-        sigprocmask(SIG_UNBLOCK, &mask, NULL);
-        waitfg(pid);
+    //PARENT FOREGROUND PROCESSES
+    if(!bg){
+      //make sure there is a job to kill
+      if (!addjob(jobs, pid, FG, cmdline)){
+        kill(-pid, SIGINT);
+        return;
       }
-      //if it is a background process
-      else{
-        if (!addjob(jobs, pid, BG, cmdline)){
-          kill(-pid, SIGINT);
-          return;
-        }
-        //unblock Parent
-        sigprocmask(SIG_UNBLOCK, &mask, NULL);
-        printf("[%d] (%d) %s", pid2jid(pid), pid, cmdline);
+      //unblock Parent
+      sigprocmask(SIG_UNBLOCK, &mask, NULL);
+      waitfg(pid);
+    }
+
+    //PARENT BACKGROUND PROCESSES
+    else{
+      //make sure there is a job to kill
+      if (!addjob(jobs, pid, BG, cmdline)){
+        kill(-pid, SIGINT);
+        return;
       }
+      //unblock Parent
+      sigprocmask(SIG_UNBLOCK, &mask, NULL);
+      //print job info
+      printf("[%d] (%d) %s", pid2jid(pid), pid, cmdline);
+    }
   }
 
 
@@ -318,18 +323,18 @@ void do_bgfg(char **argv)
   //
   string cmd(argv[0]);
 
-  int jid = jobp->jid;
-  int pid = jobp->pid;
-
+  //Continue the job
   if(!kill(-jobp->pid, SIGCONT)){
       //printf("Job [%d] (%d) continued\n", jid, pid);
     }
 
+  //If foreground, then change status and wait
   if(cmd == "fg"){
     jobp->state = FG;
     waitfg(jobp->pid);
   }
 
+  //If background, then change status, print, and return
   if(cmd == "bg"){
     jobp->state = BG;
     printf("[%d] (%d) %s", pid2jid(jobp->pid), jobp->pid, jobp->cmdline);
@@ -344,15 +349,11 @@ void do_bgfg(char **argv)
 //
 void waitfg(pid_t pid)
 {
-  // if(verbose){
-  //   printf("Entering waitfg() for PID: %d \n", pid);
-  // }
+  // Wait for there to be no foreground job
   while(pid == fgpid(jobs)){
     ;
   }
-  if(verbose){
-    printf("waitfg: Process (%d) no longer the fg process\n", pid);
-  }
+
   return;
 }
 
@@ -374,20 +375,26 @@ void sigchld_handler(int sig)
 {
   pid_t wpid;
   int status;
-  //Reaps a zombie child
+  //Will reap all zombie children //W|W doesnt hang for stopped jobs
   while((wpid = waitpid(-1, &status, WNOHANG|WUNTRACED)) > 0){
+    //Check if it was signalled (sigint)
     if(WIFSIGNALED(status)){
-      //printf("\nsignaled\n");
+      printf("Job [%d] (%d) terminated by signal %d\n", pid2jid(wpid), wpid, WTERMSIG(status));
     }
+    //Check if it was stopped (sigstp)
     else if(WIFSTOPPED(status)){
+      printf("Job [%d] (%d) stopped by signal %d\n", pid2jid(wpid), wpid, WSTOPSIG(status));
+      getjobpid(jobs, wpid)->state = ST;
       return;
     }
+    // as long as it is a terminated job, this should trigger!
     deletejob(jobs, wpid);
-    //printf("Deleted job %d",wpid);
   }
+  //if successful, return
   if (errno == 0){
     return;
   }
+  //if there was an error, print the error and exit the program
   if (errno != ECHILD){
     unix_error("waitpid error");
   }
@@ -404,13 +411,10 @@ void sigint_handler(int sig)
 {
   //get current foreground process
   pid_t pid = fgpid(jobs);
-  int jid = pid2jid(pid);
+
   //stops current foreground process
   if (pid != 0){
-    if(!kill(-pid, SIGINT)){
-      //if successfull, it prints out which job was terminated
-      printf("Job [%d] (%d) terminated by signal %d\n", jid, pid, sig);
-    }
+    kill(-pid, SIGINT);
   }
 }
 
@@ -422,15 +426,11 @@ void sigint_handler(int sig)
 //
 void sigtstp_handler(int sig)
 {
+  //get current foreground process
   pid_t pid = fgpid(jobs);
-  int jid = pid2jid(pid);
-  //kills current foreground process
+  //ends current foreground process
   if (pid != 0){
-    if(!kill(-pid, SIGTSTP)){
-      //if successfull, it prints out which job was stopped
-      printf("Job [%d] (%d) stopped by signal %d\n", jid, pid, sig);
-      getjobpid(jobs, pid)->state = ST;
-    }
+    kill(-pid, SIGTSTP);
   }
 
   return;
